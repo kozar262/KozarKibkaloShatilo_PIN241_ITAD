@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   seaweedfs:
-    image: chrislusf/seaweedfs:latest
+    image: chrislusf/seaweedfs:3.67
     container_name: seaweedfs
     ports:
       - "8333:8333"
