@@ -4,6 +4,9 @@ services:
   seaweedfs:
     image: chrislusf/seaweedfs:3.67
     container_name: seaweedfs
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=admin
     ports:
       - "8333:8333"
       - "8888:8888"
