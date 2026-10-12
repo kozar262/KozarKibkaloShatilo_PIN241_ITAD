@@ -4,9 +4,6 @@ services:
   seaweedfs-master:
     image: chrislusf/seaweedfs:3.67
     container_name: seaweedfs-master
-    ports:
-      - "9333:9333"
-      - "19333:19333"
     command: "master -ip=seaweedfs-master -ip.bind=0.0.0.0 -port=9333"
     volumes:
       - seaweedfs_master_data:/data
@@ -15,9 +12,6 @@ services:
   seaweedfs-volume:
     image: chrislusf/seaweedfs:3.67
     container_name: seaweedfs-volume
-    ports:
-      - "8080:8080"
-      - "18080:18080"
     command: "volume -ip=seaweedfs-volume -master=seaweedfs-master:9333 -ip.bind=0.0.0.0 -port=8080"
     volumes:
       - seaweedfs_volume_data:/data
