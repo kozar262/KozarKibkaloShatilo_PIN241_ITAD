@@ -1,19 +1,56 @@
 version: '3.8'
 
 services:
-  seaweedfs:
+  seaweedfs-master:
     image: chrislusf/seaweedfs:3.67
-    container_name: seaweedfs
-    environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=admin
+    container_name: seaweedfs-master
+    ports:
+      - "9333:9333"
+      - "19333:19333"
+    command: "master -ip=seaweedfs-master -ip.bind=0.0.0.0 -port=9333"
+    volumes:
+      - seaweedfs_master_data:/data
+    restart: unless-stopped
+
+  seaweedfs-volume:
+    image: chrislusf/seaweedfs:3.67
+    container_name: seaweedfs-volume
+    ports:
+      - "8080:8080"
+      - "18080:18080"
+    command: "volume -ip=seaweedfs-volume -master=seaweedfs-master:9333 -ip.bind=0.0.0.0 -port=8080"
+    volumes:
+      - seaweedfs_volume_data:/data
+    depends_on:
+      - seaweedfs-master
+    restart: unless-stopped
+
+  seaweedfs-filer:
+    image: chrislusf/seaweedfs:3.67
+    container_name: seaweedfs-filer
+    ports:
+      - "8888:8888"
+      - "18888:18888"
+    command: "filer -master=seaweedfs-master:9333 -ip.bind=0.0.0.0 -port=8888"
+    volumes:
+      - seaweedfs_filer_data:/data
+    depends_on:
+      - seaweedfs-master
+      - seaweedfs-volume
+    restart: unless-stopped
+
+  seaweedfs-s3:
+    image: chrislusf/seaweedfs:3.67
+    container_name: seaweedfs-s3
     ports:
       - "8333:8333"
-      - "8888:8888"
-    command: "server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json"
+    command: "s3 -filer=seaweedfs-filer:8888 -ip.bind=0.0.0.0 -port=8333 -config=/etc/seaweedfs/s3.json"
     volumes:
-      - seaweedfs_data:/data
       - ./seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    depends_on:
+      - seaweedfs-master
+      - seaweedfs-volume
+      - seaweedfs-filer
     restart: unless-stopped
 
   postgres:
@@ -32,14 +69,14 @@ services:
     container_name: airflow
     depends_on:
       - postgres
-      - seaweedfs
+      - seaweedfs-s3
     environment:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
       - AIRFLOW__WEBSERVER__SECRET_KEY=secret
       - 'AIRFLOW_CONN_S3_CONN=aws://admin:admin@'
-      - 'AIRFLOW_CONN_S3_CONN_EXTRA={"endpoint_url": "http://seaweedfs:8333"}'
+      - 'AIRFLOW_CONN_S3_CONN_EXTRA={"endpoint_url": "http://seaweedfs-s3:8333"}'
     volumes:
       - ../airflow/dags:/opt/airflow/dags
       - ../airflow/logs:/opt/airflow/logs
@@ -53,5 +90,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  seaweedfs_data:
+  seaweedfs_master_data:
+  seaweedfs_volume_data:
+  seaweedfs_filer_data:
   postgres_data:
