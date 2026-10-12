@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-    seaweedfs:
+  seaweedfs:
     image: chrislusf/seaweedfs:latest
     container_name: seaweedfs
     ports:
@@ -35,7 +35,7 @@ services:
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
       - AIRFLOW__WEBSERVER__SECRET_KEY=secret
-      - AIRFLOW_CONN_S3_CONN=aws://admin:admin@
+      - 'AIRFLOW_CONN_S3_CONN=aws://admin:admin@'
       - 'AIRFLOW_CONN_S3_CONN_EXTRA={"endpoint_url": "http://seaweedfs:8333"}'
     volumes:
       - ../airflow/dags:/opt/airflow/dags
