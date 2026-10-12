@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs
+    ports:
+      - "8333:8333"
+      - "8888:8888"
+    command: "server -dir=/data -s3 -s3.port=8333"
+    volumes:
+      - seaweedfs_data:/data
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15
+    container_name: airflow-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  airflow:
+    image: apache/airflow:2.9.0
+    container_name: airflow
+    depends_on:
+      - postgres
+      - seaweedfs
+    environment:
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+      - AIRFLOW__WEBSERVER__SECRET_KEY=secret
+      - AIRFLOW_CONN_S3_CONN=aws://admin:admin@?endpoint_url=http://seaweedfs:8333
+    volumes:
+      - ../airflow/dags:/opt/airflow/dags
+      - ../airflow/logs:/opt/airflow/logs
+      - ../data/source:/opt/airflow/data/source
+    ports:
+      - "8080:8080"
+    command: >
+      bash -c "airflow db init &&
+               airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
+               airflow standalone"
+    restart: unless-stopped
+
+volumes:
+  seaweedfs_data:
+  postgres_data:
