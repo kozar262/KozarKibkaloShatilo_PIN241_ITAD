@@ -1,31 +1,40 @@
 from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.providers.http.sensors.http import HttpSensor
 from airflow.operators.python import PythonOperator
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 import requests
 
+SOURCE_URL = "https://data.insideairbnb.com/spain/catalonia/barcelona/2026-09-17/data/listings.csv.gz"
+DATASET_SLUG = "inside_airbnb_barcelona"
+FILE_NAME = "listings.csv.gz"
+S3_CONN_ID = "s3_conn"
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-def upload_to_raw(source_url, dataset_slug, file_name, s3_conn_id, **context):
-    """Скачивает файл по HTTP и загружает в S3 (SeaweedFS)."""
-    hook = S3Hook(aws_conn_id=s3_conn_id)
 
-    # Бакет raw должен существовать (создаётся инфраструктурой).
+def check_source(**context):
+    """Проверяет доступность источника."""
+    response = requests.head(SOURCE_URL, headers=HEADERS, timeout=30, allow_redirects=True)
+    if response.status_code >= 400:
+        raise ValueError(f"Источник недоступен: HTTP {response.status_code}")
+    print(f"Источник доступен: HTTP {response.status_code}")
+
+
+def upload_to_raw(**context):
+    """Скачивает файл и загружает в S3 (SeaweedFS)."""
+    hook = S3Hook(aws_conn_id=S3_CONN_ID)
+
     if not hook.check_for_bucket(bucket_name="raw"):
-        raise ValueError(
-            "Bucket 'raw' does not exist. "
-            "Создайте его вручную или через docker-compose инициализацию."
-        )
+        raise ValueError("Bucket 'raw' does not exist. Create it first.")
 
     ds = context['ds']
-    s3_key = f"{dataset_slug}/ingested_on={ds}/{file_name}"
+    s3_key = f"{DATASET_SLUG}/ingested_on={ds}/{FILE_NAME}"
 
     if hook.check_for_key(key=s3_key, bucket_name="raw"):
         print(f"Файл уже существует: s3://raw/{s3_key}. Пропускаем.")
         return
 
-    print(f"Скачиваю: {source_url}")
-    response = requests.get(source_url, timeout=300)
+    print(f"Скачиваю: {SOURCE_URL}")
+    response = requests.get(SOURCE_URL, headers=HEADERS, timeout=300)
     response.raise_for_status()
     file_bytes = response.content
     print(f"Скачано {len(file_bytes)} байт")
@@ -57,24 +66,14 @@ with DAG(
     tags=['lab2', 'ingestion'],
 ) as dag:
 
-    wait_for_source = HttpSensor(
+    wait_for_source = PythonOperator(
         task_id='wait_for_primary_source',
-        http_conn_id='source_http_conn',
-        endpoint='',
-        poke_interval=60,
-        timeout=600,
-        mode='poke',
+        python_callable=check_source,
     )
 
     load_to_raw = PythonOperator(
         task_id='load_to_raw',
         python_callable=upload_to_raw,
-        op_kwargs={
-            'source_url': 'https://data.insideairbnb.com/spain/catalonia/barcelona/2026-09-17/data/listings.csv.gz',
-            'dataset_slug': 'inside_airbnb_barcelona',
-            'file_name': 'listings.csv.gz',
-            's3_conn_id': 's3_conn',
-        },
     )
 
     wait_for_source >> load_to_raw
