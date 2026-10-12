@@ -1,10 +1,14 @@
+import argparse
 import duckdb
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-S3_PATH = f"s3://raw/{os.getenv('DATASET_SLUG')}/ingested_on=2026-10-12/{os.getenv('PRIMARY_FILE')}"
+parser = argparse.ArgumentParser(description="Чтение raw-файла из SeaweedFS через DuckDB")
+parser.add_argument("--path", required=True, help="S3-путь к файлу, например s3://raw/.../listings.csv.gz")
+args = parser.parse_args()
+
+S3_PATH = args.path
 
 con = duckdb.connect()
 con.execute("INSTALL httpfs; LOAD httpfs;")
