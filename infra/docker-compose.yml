@@ -77,7 +77,8 @@ services:
     command: >
       bash -c "airflow db init &&
                airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
-               airflow standalone"
+               airflow webserver --port 8080 -D &&
+               airflow scheduler"
     restart: unless-stopped
 
 volumes:
