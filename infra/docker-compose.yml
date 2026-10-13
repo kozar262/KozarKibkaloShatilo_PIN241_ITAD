@@ -47,17 +47,21 @@ services:
     restart: unless-stopped
 
   seaweedfs-init:
-    image: chrislusf/seaweedfs:3.67
+    image: amazon/aws-cli:latest
     container_name: seaweedfs-init
     depends_on:
       - seaweedfs-s3
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=admin
+      - AWS_DEFAULT_REGION=us-east-1
     entrypoint: /bin/sh
     command: >
       -c "sleep 20 &&
-          echo 's3.bucket.create -name raw' | weed shell -master=seaweedfs-master:9333 &&
-          echo 's3.bucket.create -name staging' | weed shell -master=seaweedfs-master:9333 &&
-          echo 's3.bucket.create -name mart' | weed shell -master=seaweedfs-master:9333 &&
-          echo 'Buckets created'"
+          aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://raw || true &&
+          aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://staging || true &&
+          aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://mart || true &&
+          echo 'Init done'"
     restart: "no"
 
   postgres:
