@@ -6,7 +6,7 @@
 Обе задачи (`wait_for_primary_source` и `load_to_raw`) завершены успешно.
 
 ## 2. Бакет raw в SeaweedFS
-![SeaweedFS Bucket](seaweedfs_bucket.png))
+![SeaweedFS Bucket](seaweedfs_buckets.png))
 
 Файл `listings.csv.gz` загружен с партиционированием по `ingested_on`.
 
