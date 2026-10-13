@@ -10,7 +10,7 @@ services:
   seaweedfs-volume:
     image: chrislusf/seaweedfs:3.67
     container_name: seaweedfs-volume
-    command: "volume -ip=seaweedfs-volume -master=seaweedfs-master:9333 -ip.bind=0.0.0.0 -port=8080"
+    command: "volume -mserver=seaweedfs-master:9333 -ip.bind=0.0.0.0 -port=8080 -dir=/data"
     volumes:
       - seaweedfs_volume_data:/data
     depends_on:
