@@ -46,6 +46,19 @@ services:
       - seaweedfs-filer
     restart: unless-stopped
 
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:3.67
+    container_name: seaweedfs-init
+    depends_on:
+      - seaweedfs-s3
+    entrypoint: /bin/sh
+    command: >
+      -c "sleep 20 &&
+          echo 's3.bucket.create -name raw' | weed shell -master=seaweedfs-master:9333 &&
+          echo 's3.bucket.create -name staging' | weed shell -master=seaweedfs-master:9333 &&
+          echo 's3.bucket.create -name mart' | weed shell -master=seaweedfs-master:9333"
+    restart: "no"
+    
   postgres:
     image: postgres:15
     container_name: airflow-postgres
