@@ -1,20 +1,28 @@
 from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.providers.http.sensors.http import HttpSensor
 from airflow.operators.python import PythonOperator
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 import requests
 
 S3_CONN_ID = "s3_conn"
+SOURCE_URL = "https://data.insideairbnb.com/spain/catalonia/barcelona/2026-09-17/data/listings.csv.gz"
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
 
+def wait_for_primary_source(**context):
+    """Проверяет доступность источника. User-Agent обязателен — иначе 403."""
+    response = requests.head(SOURCE_URL, headers=HEADERS, timeout=30, allow_redirects=True)
+    if response.status_code >= 400:
+        raise ValueError(f"Источник недоступен: HTTP {response.status_code}")
+    print(f"Источник доступен: HTTP {response.status_code}")
+
+
 def upload_to_raw(source_url, dataset_slug, file_name, s3_conn_id, **context):
-    """Скачивает файл по HTTP и загружает в S3 (SeaweedFS)."""
+    """Скачивает файл и загружает в бакет raw."""
     hook = S3Hook(aws_conn_id=s3_conn_id)
 
     if not hook.check_for_bucket(bucket_name="raw"):
-        raise ValueError("Bucket 'raw' does not exist. Create it first.")
+        raise ValueError("Bucket 'raw' does not exist. Init-контейнер должен был его создать.")
 
     ds = context['ds']
     s3_key = f"{dataset_slug}/ingested_on={ds}/{file_name}"
@@ -56,21 +64,16 @@ with DAG(
     tags=['lab2', 'ingestion'],
 ) as dag:
 
-    wait_for_source = HttpSensor(
+    wait_for_source = PythonOperator(
         task_id='wait_for_primary_source',
-        http_conn_id='source_http_conn',
-        endpoint='spain/catalonia/barcelona/2026-09-17/data/listings.csv.gz',
-        poke_interval=60,
-        timeout=600,
-        mode='poke',
-        extra_options={'headers': HEADERS},
+        python_callable=wait_for_primary_source,
     )
 
     load_to_raw = PythonOperator(
         task_id='load_to_raw',
         python_callable=upload_to_raw,
         op_kwargs={
-            'source_url': 'https://data.insideairbnb.com/spain/catalonia/barcelona/2026-09-17/data/listings.csv.gz',
+            'source_url': SOURCE_URL,
             'dataset_slug': 'inside_airbnb_barcelona',
             'file_name': 'listings.csv.gz',
             's3_conn_id': S3_CONN_ID,
