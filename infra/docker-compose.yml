@@ -1,0 +1,108 @@
+services:
+  seaweedfs-master:
+    image: chrislusf/seaweedfs:3.67
+    container_name: seaweedfs-master
+    command: "master -ip=seaweedfs-master -ip.bind=0.0.0.0 -port=9333"
+    volumes:
+      - seaweedfs_master_data:/data
+    restart: unless-stopped
+
+  seaweedfs-volume:
+    image: chrislusf/seaweedfs:3.67
+    container_name: seaweedfs-volume
+    command: "volume -mserver=seaweedfs-master:9333 -ip.bind=0.0.0.0 -port=8080 -dir=/data"
+    volumes:
+      - seaweedfs_volume_data:/data
+    depends_on:
+      - seaweedfs-master
+    restart: unless-stopped
+
+  seaweedfs-filer:
+    image: chrislusf/seaweedfs:3.67
+    container_name: seaweedfs-filer
+    ports:
+      - "8888:8888"
+      - "18888:18888"
+    command: "filer -master=seaweedfs-master:9333 -ip.bind=0.0.0.0 -port=8888"
+    volumes:
+      - seaweedfs_filer_data:/data
+    depends_on:
+      - seaweedfs-master
+      - seaweedfs-volume
+    restart: unless-stopped
+
+  seaweedfs-s3:
+    image: chrislusf/seaweedfs:3.67
+    container_name: seaweedfs-s3
+    ports:
+      - "8333:8333"
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=admin
+    command: "s3 -filer=seaweedfs-filer:8888 -ip.bind=0.0.0.0 -port=8333"
+    depends_on:
+      - seaweedfs-master
+      - seaweedfs-volume
+      - seaweedfs-filer
+    restart: unless-stopped
+
+  seaweedfs-init:
+    image: amazon/aws-cli:latest
+    container_name: seaweedfs-init
+    depends_on:
+      - seaweedfs-s3
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=admin
+      - AWS_DEFAULT_REGION=us-east-1
+    entrypoint: /bin/sh
+    command: >
+      -c "sleep 20 &&
+          aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://raw || true &&
+          aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://staging || true &&
+          aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://mart || true &&
+          echo 'Init done'"
+    restart: "no"
+
+  postgres:
+    image: postgres:15
+    container_name: airflow-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  airflow:
+    image: apache/airflow:2.9.0
+    container_name: airflow
+    depends_on:
+      - postgres
+      - seaweedfs-s3
+    env_file:
+      - ../.env
+    environment:
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+      - AIRFLOW__WEBSERVER__SECRET_KEY=secret
+    volumes:
+      - ../airflow/dags:/opt/airflow/dags
+      - ../airflow/logs:/opt/airflow/logs
+      - ../data/source:/opt/airflow/data/source
+    ports:
+      - "8080:8080"
+    command: >
+      bash -c "airflow db init &&
+               airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
+               airflow webserver --port 8080 -D &&
+               airflow scheduler"
+    restart: unless-stopped
+
+volumes:
+  seaweedfs_master_data:
+  seaweedfs_volume_data:
+  seaweedfs_filer_data:
+  postgres_data:

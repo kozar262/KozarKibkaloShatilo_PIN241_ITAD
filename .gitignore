@@ -1,4 +1,5 @@
-# Данные (не загружаем сырые и обработанные файлы)
+# Данные
+# Сырые и обработанные данные из ЛР1
 data/raw/*
 data/processed/*
 !data/raw/.gitkeep
@@ -7,15 +8,47 @@ data/processed/*
 !data/processed/.gitkeep
 !data/processed/README.md
 
+# Данные для ЛР2 (data/source/)
+!data/source/.gitkeep
+!data/source/listings.csv.gz
+!data/source/README.md
+
+# Переменные окружения и секреты
+.env
+.env.local
+
 # Jupyter Notebook
 .ipynb_checkpoints/
 
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
 venv/
-.env
+.venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Airflow
+airflow/logs/
+airflow/*.pid
+airflow/*.db
+airflow/airflow.cfg
+airflow/webserver_config.py
+
+# Docker (локальные тома)
+infra/seaweedfs_data/
+infra/postgres_data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # ОС
 .DS_Store
 Thumbs.db
+Desktop.ini
